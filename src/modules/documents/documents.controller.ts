@@ -14,8 +14,8 @@ import {
   } from '@nestjs/common';
   import { FileInterceptor } from '@nestjs/platform-express';
   import { ApiTags, ApiOperation, ApiBearerAuth, ApiConsumes, ApiBody } from '@nestjs/swagger';
-  import { diskStorage } from 'multer';
-  import { extname } from 'path';
+  import { CloudinaryStorage } from 'multer-storage-cloudinary';
+  import { v2 as cloudinary } from 'cloudinary';
   import { DocumentsService } from './documents.service';
   import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
   import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -23,6 +23,23 @@ import {
   import { DocumentResponseDto } from './dto/document-response.dto';
   import { DocumentType } from '../../common/enums/document-type.enum';
   import { Multer } from 'multer';
+  
+  cloudinary.config({
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+    api_key: process.env.CLOUDINARY_API_KEY,
+    api_secret: process.env.CLOUDINARY_API_SECRET,
+  });
+  
+  const storage = new CloudinaryStorage({
+    cloudinary: cloudinary,
+    params: async (req, file) => {
+      return {
+        folder: 'zenithino_documents',
+        format: file.mimetype.split('/')[1], // e.g., 'png', 'jpeg', 'pdf'
+        public_id: `${file.fieldname}-${Date.now()}`,
+      };
+    },
+  });
   
   @ApiTags('Documents')
   @ApiBearerAuth('JWT-auth')
@@ -50,15 +67,7 @@ import {
       },
     })
     @UseInterceptors(
-      FileInterceptor('file', {
-        storage: diskStorage({
-          destination: './uploads',
-          filename: (req, file, cb) => {
-            const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
-            cb(null, `${uniqueSuffix}${extname(file.originalname)}`);
-          },
-        }),
-      }),
+      FileInterceptor('file', { storage: storage }),
     )
     async uploadDocument(
       @CurrentUser() user: any,

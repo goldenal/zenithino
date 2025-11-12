@@ -19,13 +19,13 @@ export class DocumentsService {
     file: Multer.File,
     documentType: DocumentType,
   ): Promise<DocumentResponseDto> {
-    // In production, upload to cloud storage (S3, Cloudinary, etc.)
-    const fileUrl = `/uploads/${file.filename}`;
+    const fileUrl = file.path; // Cloudinary URL
+    const filename = file.originalname; // Original filename
 
     const document = await this.documentModel.create({
       userId,
       documentType,
-      filename: file.originalname,
+      filename,
       fileUrl,
       status: 'pending',
     });
@@ -42,6 +42,7 @@ export class DocumentsService {
     documentType: DocumentType,
   ): Promise<void> {
     try {
+      // Assuming ocrService can handle the file object with Cloudinary path
       const extractedData = await this.ocrService.extractText(file, documentType);
 
       await this.documentModel.update(
