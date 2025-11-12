@@ -6,12 +6,13 @@ import {
   BankStatementData,
 } from './interfaces/extracted-data.interface';
 import { DocumentType } from '../../common/enums/document-type.enum';
+import { Multer } from 'multer';
 
 @Injectable()
 export class OcrService {
   // Simulated OCR extraction - returns mock data based on document type
   async extractText(
-    file: Express.Multer.File,
+    file: Multer.File,
     documentType: DocumentType,
   ): Promise<ExtractedData> {
     // Simulate processing delay
