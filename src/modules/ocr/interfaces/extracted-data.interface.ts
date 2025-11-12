@@ -5,6 +5,7 @@ export interface ExtractedData {
       salesReceipts?: SalesReceiptData[];
       salesRecords?: SalesRecordData[];
       bankStatements?: BankStatementData[];
+      rawPages?: Array<{ pageNumber: number; text: string }>; // Added for generic text extraction
     };
   }
   
