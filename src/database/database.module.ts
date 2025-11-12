@@ -1,8 +1,39 @@
 import { Module } from '@nestjs/common';
-import { databaseProviders } from './database.providers';
+import { ConfigModule, ConfigService } from '@nestjs/config';
+import { SequelizeModule } from '@nestjs/sequelize';
+import { sequelizeModels } from './models';
 
 @Module({
-  providers: [...databaseProviders],
-  exports: [...databaseProviders],
+  imports: [
+    ConfigModule.forRoot({
+      isGlobal: true,
+    }),
+    SequelizeModule.forRootAsync({
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: (configService: ConfigService) => {
+        const sslRequired = configService.get<string>('DB_SSL', 'true') !== 'false';
+
+        return {
+          dialect: 'postgres',
+          url: configService.get<string>('DATABASE_URL') ?? process.env.DATABASE_URL,
+          host: configService.get<string>('DB_HOST', 'localhost'),
+          port: parseInt(configService.get<string>('DB_PORT', '5432'), 10),
+          username: configService.get<string>('DB_USERNAME', 'postgres'),
+          password: configService.get<string>('DB_PASSWORD', ''),
+          database: configService.get<string>('DB_NAME', 'postgres'),
+          autoLoadModels: true,
+          synchronize: false,
+          logging: configService.get<string>('DB_LOGGING', 'false') === 'true',
+          models: [...sequelizeModels],
+          dialectOptions: sslRequired
+            ? { ssl: { require: true, rejectUnauthorized: false } }
+            : undefined,
+        };
+      },
+    }),
+    SequelizeModule.forFeature([...sequelizeModels]),
+  ],
+  exports: [SequelizeModule],
 })
 export class DatabaseModule {}
