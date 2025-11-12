@@ -6,6 +6,11 @@ import { swaggerConfig } from './config/swagger.config';
 import * as fs from 'fs';
 
 async function bootstrap() {
+  // Skip bootstrap in serverless environment
+  if (process.env.VERCEL === '1' || process.env.AWS_LAMBDA_FUNCTION_NAME) {
+    return;
+  }
+
   const app = await NestFactory.create(AppModule);
 
   // Enable CORS
@@ -28,7 +33,7 @@ async function bootstrap() {
 
   // Create uploads directory if it doesn't exist
   if (!fs.existsSync('./uploads')) {
-    fs.mkdirSync('./uploads');
+    fs.mkdirSync('./uploads', { recursive: true });
   }
 
   // Swagger documentation

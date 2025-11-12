@@ -13,6 +13,7 @@ import { sequelizeModels } from './models';
       inject: [ConfigService],
       useFactory: (configService: ConfigService) => {
         const sslRequired = configService.get<string>('DB_SSL', 'true') !== 'false';
+        const isServerless = process.env.VERCEL === '1' || process.env.AWS_LAMBDA_FUNCTION_NAME;
 
         return {
           dialect: 'postgres',
@@ -29,6 +30,20 @@ import { sequelizeModels } from './models';
           dialectOptions: sslRequired
             ? { ssl: { require: true, rejectUnauthorized: false } }
             : undefined,
+          pool: isServerless
+            ? {
+                max: 1,
+                min: 0,
+                idle: 10000,
+                acquire: 30000,
+                evict: 1000,
+              }
+            : {
+                max: 5,
+                min: 0,
+                idle: 10000,
+                acquire: 30000,
+              },
         };
       },
     }),
