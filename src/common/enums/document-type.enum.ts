@@ -1,0 +1,5 @@
+export enum DocumentType {
+    SALES_RECEIPT = 'SALES_RECEIPT',
+    SALES_RECORD = 'SALES_RECORD',
+    BANK_STATEMENT = 'BANK_STATEMENT',
+  }

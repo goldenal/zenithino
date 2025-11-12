@@ -1,0 +1,174 @@
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { InjectModel } from '@nestjs/sequelize';
+import { CreditAssessment } from './entities/credit-assessment.entity';
+import { DocumentsService } from '../documents/documents.service';
+import { AiValidatorService } from '../ai-validator/ai-validator.service';
+import { AssessmentRequestDto } from './dto/assessment-request.dto';
+import { AssessmentResponseDto } from './dto/assessment-response.dto';
+import { DocumentType } from '../../common/enums/document-type.enum';
+
+@Injectable()
+export class CreditAssessmentService {
+  constructor(
+    @InjectModel(CreditAssessment)
+    private assessmentModel: typeof CreditAssessment,
+    private documentsService: DocumentsService,
+    private aiValidatorService: AiValidatorService,
+  ) {}
+
+  async createAssessment(
+    userId: string,
+    requestDto: AssessmentRequestDto,
+  ): Promise<AssessmentResponseDto> {
+    // Fetch documents
+    const salesReceiptDoc = await this.documentsService.getDocumentById(
+      requestDto.salesReceiptDocumentId,
+      userId,
+    );
+    const salesRecordDoc = await this.documentsService.getDocumentById(
+      requestDto.salesRecordDocumentId,
+      userId,
+    );
+    const bankStatementDoc = await this.documentsService.getDocumentById(
+      requestDto.bankStatementDocumentId,
+      userId,
+    );
+
+    // Validate document types
+    if (salesReceiptDoc.documentType !== DocumentType.SALES_RECEIPT) {
+      throw new BadRequestException('Invalid sales receipt document');
+    }
+    if (salesRecordDoc.documentType !== DocumentType.SALES_RECORD) {
+      throw new BadRequestException('Invalid sales record document');
+    }
+    if (bankStatementDoc.documentType !== DocumentType.BANK_STATEMENT) {
+      throw new BadRequestException('Invalid bank statement document');
+    }
+
+    // Check if documents are processed
+    if (
+      salesReceiptDoc.status !== 'processed' ||
+      salesRecordDoc.status !== 'processed' ||
+      bankStatementDoc.status !== 'processed'
+    ) {
+      throw new BadRequestException('All documents must be processed before assessment');
+    }
+
+    // Create pending assessment
+    const assessment = await this.assessmentModel.create({
+      userId,
+      creditScore: 0,
+      riskLevel: 'MEDIUM',
+      defaultProbability: 0,
+      maxLoanAmount: 0,
+      expectedLoss: 0,
+      status: 'pending',
+    });
+
+    // Process assessment asynchronously
+    this.processAssessment(
+      assessment.id,
+      salesReceiptDoc.extractedData,
+      salesRecordDoc.extractedData,
+      bankStatementDoc.extractedData,
+    );
+
+    return this.toResponseDto(assessment);
+  }
+
+  private async processAssessment(
+    assessmentId: string,
+    salesReceiptData: any,
+    salesRecordData: any,
+    bankStatementData: any,
+  ): Promise<void> {
+    try {
+      // Step 1: Validate documents
+      const validationResult = await this.aiValidatorService.validateDocuments(
+        salesReceiptData,
+        salesRecordData,
+        bankStatementData,
+      );
+
+      // Step 2: Calculate credit score
+      const creditScore = await this.aiValidatorService.calculateCreditScore(
+        validationResult,
+        salesReceiptData,
+        salesRecordData,
+        bankStatementData,
+      );
+
+      // Step 3: Update assessment
+      await this.assessmentModel.update(
+        {
+          creditScore: creditScore.score,
+          riskLevel: creditScore.riskLevel,
+          defaultProbability: creditScore.defaultProbability,
+          maxLoanAmount: creditScore.maxLoanAmount,
+          expectedLoss: creditScore.expectedLoss,
+          validationResult,
+          financialSummary: creditScore.financialSummary,
+          riskAnalysis: creditScore.riskAnalysis,
+          creditFactors: creditScore.factors,
+          status: 'completed',
+        },
+        {
+          where: { id: assessmentId },
+        },
+      );
+    } catch (error) {
+      await this.assessmentModel.update(
+        {
+          status: 'failed',
+        },
+        {
+          where: { id: assessmentId },
+        },
+      );
+      throw error;
+    }
+  }
+
+  async getAssessment(id: string, userId: string): Promise<AssessmentResponseDto> {
+    const assessment = await this.assessmentModel.findOne({
+      where: { id, userId },
+    });
+
+    if (!assessment) {
+      throw new NotFoundException('Assessment not found');
+    }
+
+    return this.toResponseDto(assessment);
+  }
+
+  async getUserAssessments(userId: string): Promise<AssessmentResponseDto[]> {
+    const assessments = await this.assessmentModel.findAll({
+      where: { userId },
+      order: [['createdAt', 'DESC']],
+    });
+
+    return assessments.map(assessment => this.toResponseDto(assessment));
+  }
+
+  private toResponseDto(assessment: CreditAssessment): AssessmentResponseDto {
+    return {
+      id: assessment.id,
+      userId: assessment.userId,
+      creditScore: assessment.creditScore,
+      riskLevel: assessment.riskLevel,
+      defaultProbability: assessment.defaultProbability,
+      maxLoanAmount: parseFloat(assessment.maxLoanAmount as any),
+      expectedLoss: parseFloat(assessment.expectedLoss as any),
+      lossRate: assessment.defaultProbability > 0 
+        ? Math.round((assessment.defaultProbability / 100) * 1000) / 10 
+        : 0,
+      financialSummary: assessment.financialSummary,
+      riskAnalysis: assessment.riskAnalysis,
+      businessFlowValidation: assessment.validationResult?.businessFlowValidation || {},
+      validationInsights: assessment.validationResult?.insights || [],
+      creditFactors: assessment.creditFactors || [],
+      status: assessment.status,
+      createdAt: assessment.createdAt,
+    };
+  }
+}
