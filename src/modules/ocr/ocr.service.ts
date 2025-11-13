@@ -27,7 +27,7 @@ interface PageTextResult {
 export class OcrService {
   private readonly logger = new Logger(OcrService.name);
   private readonly tempDir: string;
-  private readonly DIGITAL_TEXT_THRESHOLD = 50; // Minimum characters to consider as digital text
+  private readonly DIGITAL_TEXT_THRESHOLD = 200; // Minimum characters to consider as digital text
   private readonly OCR_CONCURRENCY = 2; // Limit concurrent OCR operations
   private readonly MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
   private readonly OCR_TIMEOUT = 120000; // 2 minutes per page
@@ -279,7 +279,7 @@ export class OcrService {
       );
 
       // Check if we have sufficient digital text
-      if (digitalText.length >= this.DIGITAL_TEXT_THRESHOLD) {
+      if (digitalText.length >= (this.DIGITAL_TEXT_THRESHOLD * pageCount)) {
         this.logger.log(
           `PDF contains digital text (${digitalText.length} chars). Using direct text extraction.`,
         );
