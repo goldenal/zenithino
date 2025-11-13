@@ -1,5 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { RiskLevel } from '../../../common/enums/risk-level.enum';
+import { UserProfileDto } from '../../users/dto/user-profile.dto';
 
 export class AssessmentResponseDto {
   @ApiProperty()
@@ -80,4 +81,7 @@ export class AssessmentResponseDto {
 
   @ApiProperty()
   createdAt: Date;
+
+  @ApiProperty({ type: () => UserProfileDto })
+  user?: UserProfileDto;
 }

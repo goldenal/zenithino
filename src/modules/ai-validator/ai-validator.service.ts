@@ -175,7 +175,7 @@ export class AiValidatorService {
       const text = result.text;
 
       if (typeof text !== 'string' || text.length === 0) {
-        throw new InternalServerErrorException(  //j
+        throw new InternalServerErrorException( //j
           'Failed to get a valid response from AI. The response text is empty.',
         );
       }

@@ -6,6 +6,8 @@ import { AiValidatorService } from '../ai-validator/ai-validator.service';
 import { AssessmentRequestDto } from './dto/assessment-request.dto';
 import { AssessmentResponseDto } from './dto/assessment-response.dto';
 import { DocumentType } from '../../common/enums/document-type.enum';
+import { User } from '../users/entities/user.entity';
+import { UserProfileDto } from '../users/dto/user-profile.dto';
 
 @Injectable()
 export class CreditAssessmentService {
@@ -120,6 +122,21 @@ export class CreditAssessmentService {
   ): Promise<AssessmentResponseDto> {
     const assessment = await this.assessmentModel.findOne({
       where: { id, userId },
+      include: [
+        {
+          model: User,
+          attributes: [
+            'id',
+            'fullName',
+            'email',
+            'businessName',
+            'phoneNumber',
+            'role',
+            'bvn',
+            'createdAt',
+          ],
+        },
+      ],
     });
 
     if (!assessment) {
@@ -132,13 +149,80 @@ export class CreditAssessmentService {
   async getUserAssessments(userId: string): Promise<AssessmentResponseDto[]> {
     const assessments = await this.assessmentModel.findAll({
       where: { userId },
+      include: [
+        {
+          model: User,
+          attributes: [
+            'id',
+            'fullName',
+            'email',
+            'businessName',
+            'phoneNumber',
+            'role',
+            'bvn',
+            'createdAt',
+          ],
+        },
+      ],
       order: [['createdAt', 'DESC']],
     });
 
     return assessments.map((assessment) => this.toResponseDto(assessment));
   }
 
+  async getAllAssessments(
+    page: number,
+    pageSize: number,
+    status?: string,
+  ): Promise<{ rows: AssessmentResponseDto[]; count: number }> {
+    const offset = (page - 1) * pageSize;
+    const where: any = {};
+    if (status) {
+      where.status = status;
+    }
+
+    const { rows, count } = await this.assessmentModel.findAndCountAll({
+      where,
+      include: [
+        {
+          model: User,
+          attributes: [
+            'id',
+            'fullName',
+            'email',
+            'businessName',
+            'phoneNumber',
+            'role',
+            'bvn',
+            'createdAt',
+          ],
+        },
+      ],
+      limit: pageSize,
+      offset,
+      order: [['createdAt', 'DESC']],
+    });
+
+    return {
+      rows: rows.map((assessment) => this.toResponseDto(assessment)),
+      count,
+    };
+  }
+
   private toResponseDto(assessment: CreditAssessment): AssessmentResponseDto {
+    const userProfile: UserProfileDto | undefined = assessment.user
+      ? {
+          id: assessment.user.id,
+          fullName: assessment.user.fullName,
+          email: assessment.user.email,
+          businessName: assessment.user.businessName,
+          phoneNumber: assessment.user.phoneNumber,
+          role: assessment.user.role,
+          bvn: assessment.user.bvn,
+          createdAt: assessment.user.createdAt,
+        }
+      : undefined;
+
     return {
       id: assessment.id,
       userId: assessment.userId,
@@ -159,6 +243,7 @@ export class CreditAssessmentService {
       creditFactors: assessment.creditFactors || [],
       status: assessment.status,
       createdAt: assessment.createdAt,
+      user: userProfile,
     };
   }
 }
