@@ -5,8 +5,18 @@ import {
   SalesRecordData,
   BankStatementData,
 } from '../ocr/interfaces/extracted-data.interface';
-import { ValidationResult, ValidationInsight, Discrepancy } from './interfaces/validation-result.interface';
-import { CreditScore, FinancialSummary, RiskAnalysis, BusinessFlowValidation, CreditFactor } from './interfaces/credit-score.interface';
+import {
+  ValidationResult,
+  ValidationInsight,
+  Discrepancy,
+} from './interfaces/validation-result.interface';
+import {
+  CreditScore,
+  FinancialSummary,
+  RiskAnalysis,
+  BusinessFlowValidation,
+  CreditFactor,
+} from './interfaces/credit-score.interface';
 import { RiskLevel } from '../../common/enums/risk-level.enum';
 
 @Injectable()
@@ -29,20 +39,37 @@ export class AiValidatorService {
     }
 
     // Calculate match percentages
-    const receiptMatchPercentage = this.calculateReceiptBankMatch(receipts, statement);
-    const recordMatchPercentage = this.calculateRecordBankMatch(records, statement);
-    
+    const receiptMatchPercentage = this.calculateReceiptBankMatch(
+      receipts,
+      statement,
+    );
+    const recordMatchPercentage = this.calculateRecordBankMatch(
+      records,
+      statement,
+    );
+
     const overallMatch = (receiptMatchPercentage + recordMatchPercentage) / 2;
 
-    const insights = this.generateInsights(receiptMatchPercentage, recordMatchPercentage, statement);
-    const discrepancies = this.identifyDiscrepancies(receipts, records, statement);
+    const insights = this.generateInsights(
+      receiptMatchPercentage,
+      recordMatchPercentage,
+      statement,
+    );
+    const discrepancies = this.identifyDiscrepancies(
+      receipts,
+      records,
+      statement,
+    );
 
     return {
       isValid: overallMatch >= 75,
       matchPercentage: Math.round(overallMatch),
       insights,
       discrepancies,
-      recommendations: this.generateRecommendations(overallMatch, discrepancies),
+      recommendations: this.generateRecommendations(
+        overallMatch,
+        discrepancies,
+      ),
     };
   }
 
@@ -52,6 +79,7 @@ export class AiValidatorService {
     salesReceipts: ExtractedData,
     salesRecords: ExtractedData,
     bankStatement: ExtractedData,
+    requestedAmount: number,
   ): Promise<CreditScore> {
     // Simulate processing delay
     await this.delay(1500);
@@ -67,13 +95,18 @@ export class AiValidatorService {
     // Calculate financial metrics
     const financialSummary = this.calculateFinancialSummary(statement);
     const riskAnalysis = this.performRiskAnalysis(statement, receipts);
-    const businessFlowValidation = this.validateBusinessFlow(receipts, records, statement);
+    const businessFlowValidation = this.validateBusinessFlow(
+      receipts,
+      records,
+      statement,
+    );
 
     // Calculate base score from validation
     let baseScore = Math.round((validationResult.matchPercentage / 100) * 60); // Max 60 points from validation
 
     // Add points from financial health (max 25 points)
-    const financialHealthScore = this.calculateFinancialHealthScore(financialSummary);
+    const financialHealthScore =
+      this.calculateFinancialHealthScore(financialSummary);
     baseScore += financialHealthScore;
 
     // Add points from risk factors (max 15 points)
@@ -85,12 +118,21 @@ export class AiValidatorService {
 
     // Determine risk level
     const riskLevel = this.determineRiskLevel(finalScore, riskAnalysis);
-    
+
     // Calculate default probability
-    const defaultProbability = this.calculateDefaultProbability(finalScore, riskLevel);
+    const defaultProbability = this.calculateDefaultProbability(
+      finalScore,
+      riskLevel,
+    );
 
     // Calculate max loan amount based on cash flow
-    const maxLoanAmount = this.calculateMaxLoanAmount(financialSummary, finalScore);
+    let maxLoanAmount = this.calculateMaxLoanAmount(
+      financialSummary,
+      finalScore,
+    );
+
+    // Adjust max loan amount based on requested amount
+    maxLoanAmount = Math.min(maxLoanAmount, requestedAmount);
 
     // Calculate expected loss
     const lossRate = defaultProbability / 100;
@@ -125,15 +167,19 @@ export class AiValidatorService {
     if (!receipts.length) return 0;
 
     let matchedCount = 0;
-    const creditTransactions = statement.transactions.filter(t => t.credit > 0);
+    const creditTransactions = statement.transactions.filter(
+      (t) => t.credit > 0,
+    );
 
-    receipts.forEach(receipt => {
-      const matchingTransaction = creditTransactions.find(t => {
-        const dateDiff = Math.abs(
-          new Date(receipt.date).getTime() - new Date(t.date).getTime()
-        ) / (1000 * 60 * 60 * 24);
+    receipts.forEach((receipt) => {
+      const matchingTransaction = creditTransactions.find((t) => {
+        const dateDiff =
+          Math.abs(
+            new Date(receipt.date).getTime() - new Date(t.date).getTime(),
+          ) /
+          (1000 * 60 * 60 * 24);
         const amountDiff = Math.abs(receipt.amount - t.credit) / receipt.amount;
-        
+
         return dateDiff <= 2 && amountDiff <= 0.05; // Within 2 days and 5% amount difference
       });
 
@@ -151,14 +197,21 @@ export class AiValidatorService {
 
     let matchedMonths = 0;
 
-    records.forEach(record => {
-      const monthTransactions = statement.transactions.filter(t => {
-        const transMonth = new Date(t.date).toLocaleString('default', { month: 'long', year: 'numeric' });
+    records.forEach((record) => {
+      const monthTransactions = statement.transactions.filter((t) => {
+        const transMonth = new Date(t.date).toLocaleString('default', {
+          month: 'long',
+          year: 'numeric',
+        });
         return transMonth === record.period && t.credit > 0;
       });
 
-      const monthTotal = monthTransactions.reduce((sum, t) => sum + t.credit, 0);
-      const difference = Math.abs(monthTotal - record.totalSales) / record.totalSales;
+      const monthTotal = monthTransactions.reduce(
+        (sum, t) => sum + t.credit,
+        0,
+      );
+      const difference =
+        Math.abs(monthTotal - record.totalSales) / record.totalSales;
 
       if (difference <= 0.15) matchedMonths++; // Within 15% difference
     });
@@ -223,7 +276,8 @@ export class AiValidatorService {
     // Business separation
     insights.push({
       type: 'warning',
-      message: 'Personal account usage, however, clear separation of business vs personal transactions visible in patterns.',
+      message:
+        'Personal account usage, however, clear separation of business vs personal transactions visible in patterns.',
       impact: 'low',
     });
 
@@ -238,7 +292,10 @@ export class AiValidatorService {
     const discrepancies: Discrepancy[] = [];
 
     // Check for missing receipts
-    const missingReceiptsMonths = this.findMissingReceiptsMonths(receipts, records);
+    const missingReceiptsMonths = this.findMissingReceiptsMonths(
+      receipts,
+      records,
+    );
     if (missingReceiptsMonths.length > 0) {
       discrepancies.push({
         type: 'Missing Documentation',
@@ -249,13 +306,19 @@ export class AiValidatorService {
     }
 
     // Check for amount mismatches
-    records.forEach(record => {
-      const monthTransactions = statement.transactions.filter(t => {
-        const transMonth = new Date(t.date).toLocaleString('default', { month: 'long', year: 'numeric' });
+    records.forEach((record) => {
+      const monthTransactions = statement.transactions.filter((t) => {
+        const transMonth = new Date(t.date).toLocaleString('default', {
+          month: 'long',
+          year: 'numeric',
+        });
         return transMonth === record.period && t.credit > 0;
       });
 
-      const monthTotal = monthTransactions.reduce((sum, t) => sum + t.credit, 0);
+      const monthTotal = monthTransactions.reduce(
+        (sum, t) => sum + t.credit,
+        0,
+      );
       const difference = Math.abs(monthTotal - record.totalSales);
       const percentDiff = (difference / record.totalSales) * 100;
 
@@ -279,28 +342,42 @@ export class AiValidatorService {
     const recommendations: string[] = [];
 
     if (matchPercentage >= 85) {
-      recommendations.push('Applicant demonstrates strong financial documentation and transparency');
+      recommendations.push(
+        'Applicant demonstrates strong financial documentation and transparency',
+      );
       recommendations.push('Recommend approval with standard terms');
     } else if (matchPercentage >= 70) {
-      recommendations.push('Request clarification on identified discrepancies before approval');
+      recommendations.push(
+        'Request clarification on identified discrepancies before approval',
+      );
       recommendations.push('Consider slightly conservative loan terms');
     } else {
-      recommendations.push('Significant concerns identified - request additional documentation');
+      recommendations.push(
+        'Significant concerns identified - request additional documentation',
+      );
       recommendations.push('Consider rejection or substantial risk premium');
     }
 
-    if (discrepancies.some(d => d.severity === 'critical')) {
-      recommendations.push('Critical discrepancies detected - thorough review required');
+    if (discrepancies.some((d) => d.severity === 'critical')) {
+      recommendations.push(
+        'Critical discrepancies detected - thorough review required',
+      );
     }
 
     return recommendations;
   }
 
-  private calculateFinancialSummary(statement: BankStatementData): FinancialSummary {
-    const monthlyData: { [key: string]: { inflow: number; outflow: number } } = {};
+  private calculateFinancialSummary(
+    statement: BankStatementData,
+  ): FinancialSummary {
+    const monthlyData: { [key: string]: { inflow: number; outflow: number } } =
+      {};
 
-    statement.transactions.forEach(t => {
-      const month = new Date(t.date).toLocaleString('default', { month: 'long', year: 'numeric' });
+    statement.transactions.forEach((t) => {
+      const month = new Date(t.date).toLocaleString('default', {
+        month: 'long',
+        year: 'numeric',
+      });
       if (!monthlyData[month]) {
         monthlyData[month] = { inflow: 0, outflow: 0 };
       }
@@ -309,15 +386,21 @@ export class AiValidatorService {
     });
 
     const months = Object.keys(monthlyData);
-    const avgInflow = Object.values(monthlyData).reduce((sum, m) => sum + m.inflow, 0) / months.length;
-    const avgOutflow = Object.values(monthlyData).reduce((sum, m) => sum + m.outflow, 0) / months.length;
+    const avgInflow =
+      Object.values(monthlyData).reduce((sum, m) => sum + m.inflow, 0) /
+      months.length;
+    const avgOutflow =
+      Object.values(monthlyData).reduce((sum, m) => sum + m.outflow, 0) /
+      months.length;
     const netAvg = avgInflow - avgOutflow;
 
     // Determine cash flow pattern
     let cashFlowPattern = 'Consistent pattern';
-    const monthlyNets = Object.values(monthlyData).map(m => m.inflow - m.outflow);
-    const positiveMonths = monthlyNets.filter(n => n > 0).length;
-    
+    const monthlyNets = Object.values(monthlyData).map(
+      (m) => m.inflow - m.outflow,
+    );
+    const positiveMonths = monthlyNets.filter((n) => n > 0).length;
+
     if (positiveMonths >= 10) {
       cashFlowPattern = 'Consistent pattern';
     } else if (positiveMonths >= 7) {
@@ -340,7 +423,9 @@ export class AiValidatorService {
     receipts: SalesReceiptData[],
   ): RiskAnalysis {
     const roundTripPercentage = this.calculateRoundTripping(statement);
-    const roundTripCount = Math.round((statement.transactions.length * roundTripPercentage) / 100);
+    const roundTripCount = Math.round(
+      (statement.transactions.length * roundTripPercentage) / 100,
+    );
 
     const details = [
       'Same day deposits and withdrawals of similar amounts',
@@ -452,7 +537,10 @@ export class AiValidatorService {
     return RiskLevel.VERY_HIGH;
   }
 
-  private calculateDefaultProbability(score: number, riskLevel: RiskLevel): number {
+  private calculateDefaultProbability(
+    score: number,
+    riskLevel: RiskLevel,
+  ): number {
     // Base probability from score
     let probability = Math.round(100 - score);
 
@@ -478,7 +566,10 @@ export class AiValidatorService {
     return probability;
   }
 
-  private calculateMaxLoanAmount(summary: FinancialSummary, score: number): number {
+  private calculateMaxLoanAmount(
+    summary: FinancialSummary,
+    score: number,
+  ): number {
     // Base loan on monthly net income
     const monthlyCapacity = summary.netAverage * 0.3; // 30% of net income for repayment
     const loanTerm = 12; // months
@@ -506,7 +597,12 @@ export class AiValidatorService {
     factors.push({
       factor: 'Document Validation',
       value: `${validation.matchPercentage}% match rate`,
-      impact: validation.matchPercentage >= 80 ? 'positive' : validation.matchPercentage >= 60 ? 'neutral' : 'negative',
+      impact:
+        validation.matchPercentage >= 80
+          ? 'positive'
+          : validation.matchPercentage >= 60
+            ? 'neutral'
+            : 'negative',
       weight: 25,
     });
 
@@ -522,7 +618,12 @@ export class AiValidatorService {
     factors.push({
       factor: 'Business Consistency',
       value: `${risk.consistencyScore}% consistency score`,
-      impact: risk.consistencyScore >= 90 ? 'positive' : risk.consistencyScore >= 80 ? 'neutral' : 'negative',
+      impact:
+        risk.consistencyScore >= 90
+          ? 'positive'
+          : risk.consistencyScore >= 80
+            ? 'neutral'
+            : 'negative',
       weight: 15,
     });
 
@@ -530,7 +631,12 @@ export class AiValidatorService {
     factors.push({
       factor: 'Fraud Risk',
       value: `${risk.roundTripTransactions.percentage}% round-trip rate`,
-      impact: risk.roundTripTransactions.percentage <= 10 ? 'positive' : risk.roundTripTransactions.percentage <= 20 ? 'neutral' : 'negative',
+      impact:
+        risk.roundTripTransactions.percentage <= 10
+          ? 'positive'
+          : risk.roundTripTransactions.percentage <= 20
+            ? 'neutral'
+            : 'negative',
       weight: 15,
     });
 
@@ -538,7 +644,12 @@ export class AiValidatorService {
     factors.push({
       factor: 'Sales Verification',
       value: `${businessFlow.salesReceiptsMatch.percentage}% receipts matched`,
-      impact: businessFlow.salesReceiptsMatch.percentage >= 85 ? 'positive' : businessFlow.salesReceiptsMatch.percentage >= 70 ? 'neutral' : 'negative',
+      impact:
+        businessFlow.salesReceiptsMatch.percentage >= 85
+          ? 'positive'
+          : businessFlow.salesReceiptsMatch.percentage >= 70
+            ? 'neutral'
+            : 'negative',
       weight: 15,
     });
 
@@ -562,9 +673,9 @@ export class AiValidatorService {
         const t1 = transactions[i];
         const t2 = transactions[j];
 
-        const dateDiff = Math.abs(
-          new Date(t1.date).getTime() - new Date(t2.date).getTime()
-        ) / (1000 * 60 * 60 * 24);
+        const dateDiff =
+          Math.abs(new Date(t1.date).getTime() - new Date(t2.date).getTime()) /
+          (1000 * 60 * 60 * 24);
 
         const amount1 = t1.credit || t1.debit;
         const amount2 = t2.credit || t2.debit;
@@ -584,17 +695,26 @@ export class AiValidatorService {
     records: SalesRecordData[],
   ): string[] {
     const receiptMonths = new Set(
-      receipts.map(r => new Date(r.date).toLocaleString('default', { month: 'long', year: 'numeric' }))
+      receipts.map((r) =>
+        new Date(r.date).toLocaleString('default', {
+          month: 'long',
+          year: 'numeric',
+        }),
+      ),
     );
 
     const missingMonths: string[] = [];
-    records.forEach(record => {
-      const expectedReceiptsInMonth = receipts.filter(r => {
-        const receiptMonth = new Date(r.date).toLocaleString('default', { month: 'long', year: 'numeric' });
+    records.forEach((record) => {
+      const expectedReceiptsInMonth = receipts.filter((r) => {
+        const receiptMonth = new Date(r.date).toLocaleString('default', {
+          month: 'long',
+          year: 'numeric',
+        });
         return receiptMonth === record.period;
       }).length;
 
-      if (expectedReceiptsInMonth < 5) { // Expecting at least 5 receipts per month
+      if (expectedReceiptsInMonth < 5) {
+        // Expecting at least 5 receipts per month
         missingMonths.push(record.period);
       }
     });

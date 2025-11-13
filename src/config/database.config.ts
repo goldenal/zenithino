@@ -21,7 +21,7 @@ const sslOptions: DialectOptions | undefined = shouldUseSsl
   : undefined;
 
 const baseOptions: SequelizeModuleOptions = {
-  dialect: ((process.env.DB_DIALECT as Dialect) ?? 'postgres') as Dialect,
+  dialect: (process.env.DB_DIALECT as Dialect) ?? 'postgres',
   autoLoadModels: true,
   synchronize: false,
   logging: (process.env.DB_LOGGING ?? 'false').toLowerCase() === 'true',

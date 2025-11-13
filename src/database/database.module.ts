@@ -12,12 +12,16 @@ import { sequelizeModels } from './models';
       imports: [ConfigModule],
       inject: [ConfigService],
       useFactory: (configService: ConfigService) => {
-        const sslRequired = configService.get<string>('DB_SSL', 'true') !== 'false';
-        const isServerless = process.env.VERCEL === '1' || process.env.AWS_LAMBDA_FUNCTION_NAME;
+        const sslRequired =
+          configService.get<string>('DB_SSL', 'true') !== 'false';
+        const isServerless =
+          process.env.VERCEL === '1' || process.env.AWS_LAMBDA_FUNCTION_NAME;
 
         return {
           dialect: 'postgres',
-          url: configService.get<string>('DATABASE_URL') ?? process.env.DATABASE_URL,
+          url:
+            configService.get<string>('DATABASE_URL') ??
+            process.env.DATABASE_URL,
           host: configService.get<string>('DB_HOST', 'localhost'),
           port: parseInt(configService.get<string>('DB_PORT', '5432'), 10),
           username: configService.get<string>('DB_USERNAME', 'postgres'),

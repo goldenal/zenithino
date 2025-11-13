@@ -31,14 +31,18 @@ export class OcrService {
   private readonly OCR_CONCURRENCY = 2; // Limit concurrent OCR operations
   private readonly MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
   private readonly OCR_TIMEOUT = 120000; // 2 minutes per page
-  private readonly SUPPORTED_IMAGE_FORMATS = ['image/jpeg', 'image/png', 'image/jpg'];
+  private readonly SUPPORTED_IMAGE_FORMATS = [
+    'image/jpeg',
+    'image/png',
+    'image/jpg',
+  ];
   private readonly SUPPORTED_PDF_FORMAT = 'application/pdf';
 
   constructor() {
     // Create a temporary directory for processing files
     this.tempDir = path.join(os.tmpdir(), 'zenithino-ocr');
     fs.ensureDirSync(this.tempDir);
-    
+
     // Configure Cloudinary for downloading files
     cloudinary.config({
       cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
@@ -46,7 +50,7 @@ export class OcrService {
       api_secret: process.env.CLOUDINARY_API_SECRET,
       secure: true, // Use HTTPS
     });
-    
+
     // Cleanup on process exit
     process.on('exit', () => this.cleanup());
     process.on('SIGINT', () => {
@@ -78,8 +82,9 @@ export class OcrService {
       localFilePath = await this.downloadFile(file);
 
       // Determine file type
-      const isPdf = file.mimetype === this.SUPPORTED_PDF_FORMAT || 
-                    file.originalname.toLowerCase().endsWith('.pdf');
+      const isPdf =
+        file.mimetype === this.SUPPORTED_PDF_FORMAT ||
+        file.originalname.toLowerCase().endsWith('.pdf');
       const isImage = this.SUPPORTED_IMAGE_FORMATS.includes(file.mimetype);
 
       if (!isPdf && !isImage) {
@@ -156,8 +161,9 @@ export class OcrService {
    * Downloads file from Cloudinary URL or uses buffer
    */
   private async downloadFile(file: Multer.File): Promise<string> {
-    const fileExtension = path.extname(file.originalname) || 
-                         (file.mimetype === this.SUPPORTED_PDF_FORMAT ? '.pdf' : '.jpg');
+    const fileExtension =
+      path.extname(file.originalname) ||
+      (file.mimetype === this.SUPPORTED_PDF_FORMAT ? '.pdf' : '.jpg');
     const tempFilePath = path.join(
       this.tempDir,
       `${Date.now()}-${Math.random().toString(36).substring(7)}${fileExtension}`,
@@ -174,11 +180,11 @@ export class OcrService {
       // Otherwise, download from Cloudinary URL
       if (file.path) {
         this.logger.debug(`Downloading file from Cloudinary: ${file.path}`);
-        
+
         try {
           const cloudinaryUrl = file.path;
-          
-          // Since files are uploaded with access_mode: 'public', 
+
+          // Since files are uploaded with access_mode: 'public',
           // they should be directly accessible via the URL
           // Try direct download first
           try {
@@ -188,43 +194,51 @@ export class OcrService {
               maxContentLength: this.MAX_FILE_SIZE,
               headers: {
                 'User-Agent': 'Mozilla/5.0',
-                'Accept': '*/*',
+                Accept: '*/*',
               },
               validateStatus: (status) => status === 200, // Only accept 200
             });
-            
+
             await fs.writeFile(tempFilePath, Buffer.from(response.data));
-            this.logger.debug(`File downloaded successfully to: ${tempFilePath}`);
+            this.logger.debug(
+              `File downloaded successfully to: ${tempFilePath}`,
+            );
             return tempFilePath;
           } catch (directError: any) {
             // If direct download fails (401, 403, etc.), try using Cloudinary SDK
-            this.logger.warn(`Direct download failed: ${directError.message}. Trying Cloudinary SDK...`);
-            
+            this.logger.warn(
+              `Direct download failed: ${directError.message}. Trying Cloudinary SDK...`,
+            );
+
             // Extract public_id from URL
             const urlParts = cloudinaryUrl.split('/');
             const uploadIndex = urlParts.indexOf('upload');
-            
+
             if (uploadIndex !== -1 && uploadIndex < urlParts.length - 1) {
               // Extract folder and public_id
               const resourceParts = urlParts.slice(uploadIndex + 2); // Skip 'upload' and version
               const publicIdWithExt = resourceParts.join('/');
               const publicId = publicIdWithExt.replace(/\.[^/.]+$/, ''); // Remove extension
-              
+
               this.logger.debug(`Extracted public_id: ${publicId}`);
-              
+
               // Determine resource type
-              const isPdf = file.mimetype?.includes('pdf') || file.originalname?.toLowerCase().endsWith('.pdf');
+              const isPdf =
+                file.mimetype?.includes('pdf') ||
+                file.originalname?.toLowerCase().endsWith('.pdf');
               const resourceType = isPdf ? 'raw' : 'image';
-              
+
               // Use Cloudinary SDK to generate a public URL
               const publicUrl = cloudinary.url(publicId, {
                 resource_type: resourceType,
                 secure: true,
                 type: 'upload',
               });
-              
-              this.logger.debug(`Generated Cloudinary public URL: ${publicUrl}`);
-              
+
+              this.logger.debug(
+                `Generated Cloudinary public URL: ${publicUrl}`,
+              );
+
               // Download from the public URL
               const response = await axios.get(publicUrl, {
                 responseType: 'arraybuffer',
@@ -232,20 +246,28 @@ export class OcrService {
                 maxContentLength: this.MAX_FILE_SIZE,
                 headers: {
                   'User-Agent': 'Mozilla/5.0',
-                  'Accept': '*/*',
+                  Accept: '*/*',
                 },
               });
-              
+
               await fs.writeFile(tempFilePath, Buffer.from(response.data));
-              this.logger.debug(`File downloaded via Cloudinary SDK to: ${tempFilePath}`);
+              this.logger.debug(
+                `File downloaded via Cloudinary SDK to: ${tempFilePath}`,
+              );
               return tempFilePath;
             } else {
-              throw new Error(`Invalid Cloudinary URL format: ${cloudinaryUrl}`);
+              throw new Error(
+                `Invalid Cloudinary URL format: ${cloudinaryUrl}`,
+              );
             }
           }
         } catch (downloadError: any) {
-          this.logger.error(`Failed to download from Cloudinary: ${downloadError.message}`);
-          throw new Error(`Failed to download file from Cloudinary: ${downloadError.message}. URL: ${file.path}`);
+          this.logger.error(
+            `Failed to download from Cloudinary: ${downloadError.message}`,
+          );
+          throw new Error(
+            `Failed to download file from Cloudinary: ${downloadError.message}. URL: ${file.path}`,
+          );
         }
       }
 
@@ -267,19 +289,19 @@ export class OcrService {
     try {
       // Read PDF file
       const pdfBuffer = await fs.readFile(filePath);
-      
+
       // Try to extract digital text using pdf-parse
       const parser = new PDFParse({ data: pdfBuffer });
       const textResult = await parser.getText();
       const digitalText = textResult.text.trim();
       const pageCount = textResult.total;
-      
+
       this.logger.debug(
         `Digital text extraction: ${digitalText.length} characters, ${pageCount} pages`,
       );
 
       // Check if we have sufficient digital text
-      if (digitalText.length >= (this.DIGITAL_TEXT_THRESHOLD * pageCount)) {
+      if (digitalText.length >= this.DIGITAL_TEXT_THRESHOLD * pageCount) {
         this.logger.log(
           `PDF contains digital text (${digitalText.length} chars). Using direct text extraction.`,
         );
@@ -306,9 +328,7 @@ export class OcrService {
         if (digitalText.length > 0) {
           return digitalText;
         }
-        throw new Error(
-          `Failed to extract text from PDF: ${ocrError.message}`,
-        );
+        throw new Error(`Failed to extract text from PDF: ${ocrError.message}`);
       }
     } catch (error) {
       if (error.message.includes('OCR for PDFs')) {
@@ -336,7 +356,7 @@ export class OcrService {
       // Try to use pdf-parse's screenshot capability to convert PDF pages to images
       const pdfBuffer = await fs.readFile(filePath);
       const parser = new PDFParse({ data: pdfBuffer });
-      
+
       // Get screenshots for all pages
       // Note: getScreenshot() returns all pages at once
       const screenshotResult = await parser.getScreenshot({
@@ -345,7 +365,11 @@ export class OcrService {
         imageDataUrl: false,
       });
 
-      if (!screenshotResult || !screenshotResult.pages || screenshotResult.pages.length === 0) {
+      if (
+        !screenshotResult ||
+        !screenshotResult.pages ||
+        screenshotResult.pages.length === 0
+      ) {
         throw new Error('Failed to generate screenshots from PDF');
       }
 
@@ -433,7 +457,7 @@ export class OcrService {
         setTimeout(() => reject(new Error('OCR timeout')), this.OCR_TIMEOUT),
       );
 
-      const { data } = await Promise.race([ocrPromise, timeoutPromise]) as any;
+      const { data } = await Promise.race([ocrPromise, timeoutPromise]);
       const extractedText = data.text.trim();
 
       this.logger.log(
@@ -516,11 +540,11 @@ export class OcrService {
     // This is a simplified parser
     // In production, you'd use NLP, regex patterns, or ML models for better parsing
     const receipts: SalesReceiptData[] = [];
-    
+
     // Extract date patterns
     const datePattern = /(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})/g;
     const amountPattern = /(\$?\d{1,3}(?:,\d{3})*(?:\.\d{2})?)/g;
-    
+
     const dates = text.match(datePattern) || [];
     const amounts = text.match(amountPattern) || [];
 
@@ -558,8 +582,18 @@ export class OcrService {
     // Simplified parser for sales records
     const records: SalesRecordData[] = [];
     const months = [
-      'January', 'February', 'March', 'April', 'May', 'June',
-      'July', 'August', 'September', 'October', 'November', 'December',
+      'January',
+      'February',
+      'March',
+      'April',
+      'May',
+      'June',
+      'July',
+      'August',
+      'September',
+      'October',
+      'November',
+      'December',
     ];
 
     // Extract total sales amounts
@@ -572,10 +606,10 @@ export class OcrService {
         : 0;
 
       if (totalSales > 0) {
-      records.push({
+        records.push({
           recordId: `REC-2024-${String(index + 1).padStart(2, '0')}`,
           period: `${month} 2024`,
-        totalSales,
+          totalSales,
           numberOfTransactions: Math.floor(Math.random() * 50) + 10,
           averageTransactionValue: Math.floor(totalSales / 20),
           topProducts: ['Products'],
@@ -613,10 +647,12 @@ export class OcrService {
     );
 
     if (statement.transactions.length > 0) {
-      statement.openingBalance = statement.transactions[0].balance - 
-                                  statement.transactions[0].credit + 
-                                  statement.transactions[0].debit;
-      statement.closingBalance = statement.transactions[statement.transactions.length - 1].balance;
+      statement.openingBalance =
+        statement.transactions[0].balance -
+        statement.transactions[0].credit +
+        statement.transactions[0].debit;
+      statement.closingBalance =
+        statement.transactions[statement.transactions.length - 1].balance;
     }
 
     return [statement];
@@ -651,8 +687,12 @@ export class OcrService {
     const dates = text.match(datePattern) || [];
 
     return {
-      from: dates[0] ? this.parseDate(dates[0]) : new Date().toISOString().split('T')[0],
-      to: dates[dates.length - 1] ? this.parseDate(dates[dates.length - 1]) : new Date().toISOString().split('T')[0],
+      from: dates[0]
+        ? this.parseDate(dates[0])
+        : new Date().toISOString().split('T')[0],
+      to: dates[dates.length - 1]
+        ? this.parseDate(dates[dates.length - 1])
+        : new Date().toISOString().split('T')[0],
     };
   }
 
@@ -660,7 +700,7 @@ export class OcrService {
     const transactions: BankStatementData['transactions'] = [];
     const datePattern = /(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})/g;
     const amountPattern = /(\$?\d{1,3}(?:,\d{3})*(?:\.\d{2})?)/g;
-    
+
     const dates = text.match(datePattern) || [];
     const amounts = text.match(amountPattern) || [];
 
@@ -674,7 +714,7 @@ export class OcrService {
         const isCredit = Math.random() > 0.5; // Simplified - in production, use better detection
         balance += isCredit ? amount : -amount;
 
-            transactions.push({
+        transactions.push({
           date: this.parseDate(date),
           description: 'Transaction',
           debit: isCredit ? 0 : Math.round(amount * 100),
@@ -711,7 +751,9 @@ export class OcrService {
         this.logger.debug(`Cleaned up temporary directory: ${this.tempDir}`);
       }
     } catch (error) {
-      this.logger.warn(`Failed to cleanup temporary directory: ${error.message}`);
+      this.logger.warn(
+        `Failed to cleanup temporary directory: ${error.message}`,
+      );
     }
   }
 }
