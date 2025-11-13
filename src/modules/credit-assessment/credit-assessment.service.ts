@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
 import { CreditAssessment } from './entities/credit-assessment.entity';
 import { DocumentsService } from '../documents/documents.service';
@@ -20,39 +20,21 @@ export class CreditAssessmentService {
     userId: string,
     requestDto: AssessmentRequestDto,
   ): Promise<AssessmentResponseDto> {
-    // Fetch documents
-    const salesReceiptDoc = await this.documentsService.getDocumentById(
-      requestDto.salesReceiptDocumentId,
+    // Fetch latest processed documents
+    const salesReceiptDoc =
+      await this.documentsService.findLastProcessedForUser(
+        userId,
+        DocumentType.SALES_RECEIPT,
+      );
+    const salesRecordDoc = await this.documentsService.findLastProcessedForUser(
       userId,
+      DocumentType.SALES_RECORD,
     );
-    const salesRecordDoc = await this.documentsService.getDocumentById(
-      requestDto.salesRecordDocumentId,
-      userId,
-    );
-    const bankStatementDoc = await this.documentsService.getDocumentById(
-      requestDto.bankStatementDocumentId,
-      userId,
-    );
-
-    // Validate document types
-    if (salesReceiptDoc.documentType !== DocumentType.SALES_RECEIPT) {
-      throw new BadRequestException('Invalid sales receipt document');
-    }
-    if (salesRecordDoc.documentType !== DocumentType.SALES_RECORD) {
-      throw new BadRequestException('Invalid sales record document');
-    }
-    if (bankStatementDoc.documentType !== DocumentType.BANK_STATEMENT) {
-      throw new BadRequestException('Invalid bank statement document');
-    }
-
-    // Check if documents are processed
-    if (
-      salesReceiptDoc.status !== 'processed' ||
-      salesRecordDoc.status !== 'processed' ||
-      bankStatementDoc.status !== 'processed'
-    ) {
-      throw new BadRequestException('All documents must be processed before assessment');
-    }
+    const bankStatementDoc =
+      await this.documentsService.findLastProcessedForUser(
+        userId,
+        DocumentType.BANK_STATEMENT,
+      );
 
     // Create pending assessment
     const assessment = await this.assessmentModel.create({
@@ -63,14 +45,16 @@ export class CreditAssessmentService {
       maxLoanAmount: 0,
       expectedLoss: 0,
       status: 'pending',
+      requestedAmount: requestDto.requestedAmount,
     });
 
     // Process assessment asynchronously
-    this.processAssessment(
+    await this.processAssessment(
       assessment.id,
       salesReceiptDoc.extractedData,
       salesRecordDoc.extractedData,
       bankStatementDoc.extractedData,
+      requestDto.requestedAmount,
     );
 
     return this.toResponseDto(assessment);
@@ -81,6 +65,7 @@ export class CreditAssessmentService {
     salesReceiptData: any,
     salesRecordData: any,
     bankStatementData: any,
+    requestedAmount: number,
   ): Promise<void> {
     try {
       // Step 1: Validate documents
@@ -96,6 +81,7 @@ export class CreditAssessmentService {
         salesReceiptData,
         salesRecordData,
         bankStatementData,
+        requestedAmount,
       );
 
       // Step 3: Update assessment
@@ -129,7 +115,10 @@ export class CreditAssessmentService {
     }
   }
 
-  async getAssessment(id: string, userId: string): Promise<AssessmentResponseDto> {
+  async getAssessment(
+    id: string,
+    userId: string,
+  ): Promise<AssessmentResponseDto> {
     const assessment = await this.assessmentModel.findOne({
       where: { id, userId },
     });
@@ -147,7 +136,7 @@ export class CreditAssessmentService {
       order: [['createdAt', 'DESC']],
     });
 
-    return assessments.map(assessment => this.toResponseDto(assessment));
+    return assessments.map((assessment) => this.toResponseDto(assessment));
   }
 
   private toResponseDto(assessment: CreditAssessment): AssessmentResponseDto {
@@ -159,12 +148,14 @@ export class CreditAssessmentService {
       defaultProbability: assessment.defaultProbability,
       maxLoanAmount: parseFloat(assessment.maxLoanAmount as any),
       expectedLoss: parseFloat(assessment.expectedLoss as any),
-      lossRate: assessment.defaultProbability > 0 
-        ? Math.round((assessment.defaultProbability / 100) * 1000) / 10 
-        : 0,
+      lossRate:
+        assessment.defaultProbability > 0
+          ? Math.round((assessment.defaultProbability / 100) * 1000) / 10
+          : 0,
       financialSummary: assessment.financialSummary,
       riskAnalysis: assessment.riskAnalysis,
-      businessFlowValidation: assessment.validationResult?.businessFlowValidation || {},
+      businessFlowValidation:
+        assessment.validationResult?.businessFlowValidation || {},
       validationInsights: assessment.validationResult?.insights || [],
       creditFactors: assessment.creditFactors || [],
       status: assessment.status,

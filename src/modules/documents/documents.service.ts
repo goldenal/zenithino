@@ -43,7 +43,10 @@ export class DocumentsService {
   ): Promise<void> {
     try {
       // Assuming ocrService can handle the file object with Cloudinary path
-      const extractedData = await this.ocrService.extractText(file, documentType);
+      const extractedData = await this.ocrService.extractText(
+        file,
+        documentType,
+      );
 
       await this.documentModel.update(
         {
@@ -55,61 +58,82 @@ export class DocumentsService {
         },
       );
     } catch (error) {
-        await this.documentModel.update(
-          {
-            status: 'failed',
-          },
-          {
-            where: { id: documentId },
-          },
-        );
-      }
-    }
-  
-    async getUserDocuments(userId: string): Promise<DocumentResponseDto[]> {
-      const documents = await this.documentModel.findAll({
-        where: { userId },
-        order: [['createdAt', 'DESC']],
-      });
-  
-      return documents.map(doc => this.toResponseDto(doc));
-    }
-  
-    async getDocumentById(id: string, userId: string): Promise<Document> {
-      const document = await this.documentModel.findOne({
-        where: { id, userId },
-      });
-  
-      if (!document) {
-        throw new NotFoundException('Document not found');
-      }
-  
-      return document;
-    }
-  
-    async getDocumentsByType(
-      userId: string,
-      documentType: DocumentType,
-    ): Promise<Document[]> {
-      return this.documentModel.findAll({
-        where: { userId, documentType, status: 'processed' },
-      });
-    }
-  
-    async deleteDocument(id: string, userId: string): Promise<void> {
-      const document = await this.getDocumentById(id, userId);
-      await document.destroy();
-    }
-  
-    private toResponseDto(document: Document): DocumentResponseDto {
-      return {
-        id: document.id,
-        documentType: document.documentType,
-        filename: document.filename,
-        fileUrl: document.fileUrl,
-        status: document.status,
-        extractedData: document.extractedData,
-        createdAt: document.createdAt,
-      };
+      await this.documentModel.update(
+        {
+          status: 'failed',
+        },
+        {
+          where: { id: documentId },
+        },
+      );
     }
   }
+
+  async getUserDocuments(userId: string): Promise<DocumentResponseDto[]> {
+    const documents = await this.documentModel.findAll({
+      where: { userId },
+      order: [['createdAt', 'DESC']],
+    });
+
+    return documents.map((doc) => this.toResponseDto(doc));
+  }
+
+  async getDocumentById(id: string, userId: string): Promise<Document> {
+    const document = await this.documentModel.findOne({
+      where: { id, userId },
+    });
+
+    if (!document) {
+      throw new NotFoundException('Document not found');
+    }
+
+    return document;
+  }
+
+  async getDocumentsByType(
+    userId: string,
+    documentType: DocumentType,
+  ): Promise<Document[]> {
+    return this.documentModel.findAll({
+      where: { userId, documentType, status: 'processed' },
+    });
+  }
+
+  async findLastProcessedForUser(
+    userId: string,
+    documentType: DocumentType,
+  ): Promise<Document> {
+    const document = await this.documentModel.findOne({
+      where: {
+        userId,
+        documentType,
+        status: 'processed',
+      },
+      order: [['createdAt', 'DESC']],
+    });
+
+    if (!document) {
+      throw new NotFoundException(
+        `No processed ${documentType} document found for this user.`,
+      );
+    }
+
+    return document;
+  }
+
+  async deleteDocument(id: string, userId: string): Promise<void> {
+    const document = await this.getDocumentById(id, userId);
+    await document.destroy();
+  }
+  private toResponseDto(document: Document): DocumentResponseDto {
+    return {
+      id: document.id,
+      documentType: document.documentType,
+      filename: document.filename,
+      fileUrl: document.fileUrl,
+      status: document.status,
+      extractedData: document.extractedData,
+      createdAt: document.createdAt,
+    };
+  }
+}

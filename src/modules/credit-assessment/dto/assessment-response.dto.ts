@@ -23,6 +23,7 @@ export class AssessmentResponseDto {
   @ApiProperty({ example: 50000 })
   expectedLoss: number;
 
+
   @ApiProperty({ example: 2.0 })
   lossRate: number;
 
