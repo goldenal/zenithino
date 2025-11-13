@@ -112,7 +112,7 @@ export class AiValidatorService {
       The JSON object must conform to the following TypeScript interface: 
       
       interface CreditScore {
-        score: number; // A final credit score from 0 to 100.
+        score: number; // A final credit score from 0 to 1000.
         riskLevel: 'VERY_LOW' | 'LOW' | 'MEDIUM' | 'HIGH' | 'VERY_HIGH';
         defaultProbability: number; // Probability of default as a percentage (e.g., 5.5).
         maxLoanAmount: number; // The maximum loan amount you recommend. This should not exceed the requested amount.

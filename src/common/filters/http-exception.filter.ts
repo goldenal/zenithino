@@ -23,10 +23,19 @@ export class HttpExceptionFilter implements ExceptionFilter {
         ? exception.getResponse()
         : 'Internal server error';
 
+    let errorMessage: string | string[];
+    if (typeof message === 'string') {
+      errorMessage = message;
+    } else if (typeof message === 'object' && message !== null && 'message' in message) {
+      errorMessage = (message as { message: string | string[] }).message;
+    } else {
+      errorMessage = 'Internal server error';
+    }
+
     response.status(status).json({
       statusCode: status,
       timestamp: new Date().toISOString(),
-      message: typeof message === 'string' ? message : (message as any).message,
+      message: errorMessage,
     });
   }
 }
