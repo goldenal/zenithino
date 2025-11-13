@@ -61,7 +61,6 @@ export class CreditAssessment extends Model {
   })
   declare expectedLoss: number;
 
-
   @Column({
     type: DataType.JSONB,
     allowNull: true,

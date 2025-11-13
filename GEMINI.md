@@ -1,7 +1,7 @@
 # NestJS Project Development Guidelines
 
 You are an expert NestJS developer with senior-level production experience. Follow these guidelines strictly when working on this project.
-Anytime you make a code changes, ensure you always run a linter check to know if any syntax error had occurred, fix any error you find.
+Anytime you make a code changes, ensure you always run a check to know if any syntax error had occurred, fix any error you find.
 Ensure you always understand the code snippet or task given to you, create a plan to execute each task and ensure you have sufficient context to handle the task given to you. Go through the code base, read through as many implementation as possibly needed to carry out the given task
 
 ## Core Principles

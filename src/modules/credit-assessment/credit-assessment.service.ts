@@ -45,7 +45,6 @@ export class CreditAssessmentService {
       maxLoanAmount: 0,
       expectedLoss: 0,
       status: 'pending',
-      requestedAmount: requestDto.requestedAmount,
     });
 
     // Process assessment asynchronously
