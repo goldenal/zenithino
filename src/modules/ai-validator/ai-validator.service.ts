@@ -106,16 +106,15 @@ export class AiValidatorService {
       1. Sales Receipts: ${JSON.stringify(salesReceipts)}
       2. Sales Records: ${JSON.stringify(salesRecords)}
       3. Bank Statement: ${JSON.stringify(bankStatement)}
-      4. Requested Loan Amount: ${requestedAmount}
 
       Based on all this information, provide a comprehensive credit assessment as a JSON object.
       The JSON object must conform to the following TypeScript interface: 
       
       interface CreditScore {
-        score: number; // A final credit score from 0 to 1000.
+        score: number; // A final credit score from 300 to 850.
         riskLevel: 'VERY_LOW' | 'LOW' | 'MEDIUM' | 'HIGH' | 'VERY_HIGH';
         defaultProbability: number; // Probability of default as a percentage (e.g., 5.5).
-        maxLoanAmount: number; // The maximum loan amount you recommend. This should not exceed the requested amount.
+        maxLoanAmount: number; // The maximum loan amount you recommend. 
         expectedLoss: number; // Calculated as maxLoanAmount * (defaultProbability / 100).
         lossRate: number;
         financialSummary: FinancialSummary;
