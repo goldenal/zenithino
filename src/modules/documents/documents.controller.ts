@@ -51,7 +51,7 @@ const SUPPORTED_MIME_TYPES = [
 ];
 
 // Supported file extensions
-const SUPPORTED_EXTENSIONS = /\.(jpg|jpeg|png|pdf)$/i;
+const SUPPORTED_EXTENSIONS = /\.(jpg|jpeg|png|pdf)$/i;//
 
 // Custom file type validator that checks both MIME type and file extension
 @Injectable()
